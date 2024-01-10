@@ -6,20 +6,139 @@ output:
 ---
 
 
-## Loading and preprocessing the data
+## 1 Reading in the dataset
+```{r}
+data<-read.csv("activity.csv")
+
+```
+## 2 Histogram of the total number of steps taken each day
+```{r}
+library(dplyr)
+perDay <- data %>%
+  group_by(date) %>%
+  summarise(totSteps = sum(steps))
+
+hist(perDay$totSteps, density=30, breaks=20,col="black",  
+     xlab="Steps per day", ylab="",  
+     main="Total number of steps taken each day")
+```
+
+## 3 Mean and median number of steps taken each day
+plot
+```{r}
+# Mean number of steps taken each day
+mean(perDay$totSteps, na.rm = TRUE)
+```
+```{r}
+# Median number of steps taken each day
+median(perDay$totSteps, na.rm = TRUE)
+```
+
+## 4 Time series plot of the average number of steps taken
+```{r}
+perInterval <- data %>%
+  group_by(interval) %>%
+  summarise(meanSteps = mean(steps,na.rm = TRUE))
+perInterval$hm<-paste(as.character((perInterval$interval-perInterval$interval%%100)/100),":",as.character(perInterval$interval%%100),sep="")
+perInterval$time<-as.POSIXlt(perInterval$hm,format="%H:%M")
+
+plot(perInterval$time,perInterval$meanSteps,type="l",
+     main="Average number of steps taken by interval",
+     xlab="",ylab="Average number of steps")
+
+```
+
+## 5 The 5-minute interval that, on average, contains the maximum number of steps
 
 
+```{r}
+perInterval[perInterval$meanSteps==max(perInterval$meanSteps),c("hm","meanSteps")]
+```
 
-## What is mean total number of steps taken per day?
+## 6 Code to describe and show a strategy for imputing missing data
 
+```{r}
+#total number of missing values in the dataset:
+sum(is.na(data$steps)) 
 
+```
 
-## What is the average daily activity pattern?
+As the days are relatively similar, but we see pattern across each day, we can replace missing values with mean for the interval.
 
+```{r}
+library(ggplot2)
 
+# Heatmap 
+ggplot(data, aes(as.POSIXct(date), interval, fill= steps)) + 
+  geom_tile()
+```
+### Create a new dataset with the missing data filled in.
+```{r}
+newdata<-data
+for (row in 1:nrow(data)){
+  if(is.na(data$steps[row])) {
+    newdata$steps[row]<-mean(data$steps[data$interval==data$interval[row]],na.rm=TRUE)    
+  }
+  else {
+    newdata$steps[row]<-data$steps[row]
+  }
+}
+```
 
-## Imputing missing values
+### Missing numbers check
+```{r}
+#total number of missing values in the new dataset:
+sum(is.na(newdata$steps)) 
+```
 
+### Check result with heatmap 
+```{r}
+ggplot(newdata, aes(as.POSIXct(date), interval, fill= steps)) + 
+  geom_tile()
+```
 
+## 7 Histogram of the total number of steps taken each day after missing values are imputed
 
-## Are there differences in activity patterns between weekdays and weekends?
+```{r}
+newperDay <- newdata %>%
+  group_by(date) %>%
+  summarise(totSteps = sum(steps))
+
+hist(newperDay$totSteps, density=30, breaks=20,col="black",  
+     xlab="Steps per day", ylab="",  
+     main="Total number of steps taken each day")
+```
+ 
+```{r}
+# Mean number of steps taken each day
+mean(newperDay$totSteps, na.rm = TRUE)
+```
+```{r}
+# Median number of steps taken each day
+median(newperDay$totSteps, na.rm = TRUE)
+```
+
+The histogram has new peak where the average day would be. The mean value does not change by adding mean values, but median is now the same as there are lots of days with average number of steps.
+
+## 8 Panel plot comparing the average number of steps taken per 5-minute interval across weekdays and weekends
+
+We can see that the morning peak only happens on weekdays, but on weekends, the number of steps tends to be higher over the day.
+
+```{r}
+library(lattice)
+
+isweekend<-weekdays.POSIXt(as.POSIXct(newdata$date))%in%c("Saturday","Sunday")
+newdata$dayType<-as.factor(ifelse(isweekend,"weekend","weekday"))
+
+newPerInterval <- newdata %>%
+  group_by(interval,dayType) %>%
+  summarise(meanSteps = mean(steps,na.rm = TRUE))
+
+xyplot(newPerInterval$meanSteps~newPerInterval$interval|newPerInterval$dayType,
+       type="l",
+       layout=c(1,2),
+       xlab="Interval",
+       ylab="Number of steps"
+       )
+```
+
